@@ -1,0 +1,113 @@
+# Copyright (C) 2026 Gaultier HUBERT
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Release (Feature repo)
+
+on:
+  release:
+    types:
+      - published
+
+env:
+  HECATE_REPO_GITHUB: codebfu/hecate-repo
+  HECATE_REPO_REF: master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master pin
+        with:
+          toolchain: stable
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Build proxmox .deb
+        run: |
+          cargo build --release --locked
+          bash packaging/linux/build-deb.sh "${VERSION}" amd64 target/release/hecate-lampad-proxmox dist
+
+      - name: Upload installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-linux
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_REF_NAME: ${{ github.event.release.tag_name }}
+
+      - name: Download installer
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v8.0.1
+        with:
+          name: installer-linux
+          path: dist
+
+      - name: Checkout hecate-repo CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.HECATE_REPO_GITHUB }}
+          ref: ${{ env.HECATE_REPO_REF }}
+          path: hecate-repo
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master pin
+        with:
+          toolchain: stable
+
+      - name: Install publish tools
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Build hecate-repo CLI
+        run: cargo build --release --locked --manifest-path hecate-repo/Cargo.toml
+
+      - name: Publish proxmox helper to official feature repo (SFTP)
+        env:
+          VERSION: ${{ env.VERSION }}
+          HECATE_REPO_BIN: ${{ github.workspace }}/hecate-repo/target/release/hecate-repo
+          HECATE_REPO_SIGNING_KEY_B64: ${{ secrets.hecate_REPO_SIGNING_KEY_B64 }}
+          HECATE_REPO_FTP_HOST: ${{ vars.hecate_REPO_FTP_HOST }}
+          HECATE_REPO_FTP_USER: ${{ secrets.hecate_REPO_FTP_USER }}
+          HECATE_REPO_FTP_PASSWORD: ${{ secrets.hecate_REPO_FTP_PASSWORD }}
+          HECATE_REPO_FTP_REMOTE_DIR: ${{ vars.hecate_REPO_FTP_REMOTE_DIR }}
+          HECATE_REPO_FTP_PORT: ${{ vars.hecate_REPO_FTP_PORT }}
+          HECATE_REPO_FTP_PROTOCOL: ${{ vars.hecate_REPO_FTP_PROTOCOL }}
+        run: |
+          deb="dist/hecate-lampad-proxmox_${VERSION}_amd64.deb"
+          bash hecate-repo/ci/publish-to-repo-ftp.sh \
+            --feature-json features/proxmox/feature.json \
+            --artifact "$deb" \
+            --os linux \
+            --arch x86_64 \
+            --installer-type deb \
+            --kind helper

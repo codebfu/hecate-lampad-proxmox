@@ -1,0 +1,23 @@
+[Unit]
+Description=Hecate Lampad Proxmox console helper
+After=network-online.target hecate-lampad.service
+Requires=network-online.target
+Wants=hecate-lampad.service
+
+[Service]
+Type=simple
+User=hecate-lampad-proxmox
+Group=hecate-ipc
+SupplementaryGroups=
+DynamicUser=no
+ExecStart=/usr/bin/hecate-lampad-proxmox run
+Restart=always
+RestartSec=2
+# Helper talks to local PVE API and shares IPC with the agent.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+PrivateTmp=yes
+ReadWritePaths=/run/hecate-lampad
+ReadOnlyPaths=/etc/hecate-lampad
+
+[Install]
+WantedBy=multi-user.target

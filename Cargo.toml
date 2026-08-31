@@ -1,0 +1,38 @@
+[package]
+name = "hecate-lampad-proxmox"
+description = "Hecate lampad Proxmox VM console helper"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.93"
+license = "GPL-3.0-or-later"
+authors = ["Gaultier HUBERT"]
+
+[[bin]]
+name = "hecate-lampad-proxmox"
+path = "src/main.rs"
+
+[features]
+default = []
+websocket = ["dep:tokio-tungstenite"]
+
+[dependencies]
+hecate-lampad-helper-base = { git = "https://github.com/codebfu/hecate-lampad-helper-base.git", rev = "9e401cb7f29ccdab070e5c488aa919dad729f7c2" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["serde", "v4"] }
+clap = { version = "4", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio-tungstenite = { version = "0.27", optional = true, default-features = false, features = ["rustls-tls-webpki-roots"] }
+base64 = "0.22"
+rand = "0.9"
+des = "0.8"
+libc = "0.2"

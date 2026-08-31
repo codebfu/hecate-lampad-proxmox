@@ -1,0 +1,13 @@
+project = Project.find_by_full_path("hecate/hecate")
+mr = project.merge_requests.find_by!(iid: 1)
+user = User.admins.first
+puts "state=#{mr.state}"
+puts "mergeable=#{mr.mergeable?}"
+puts "merge_status=#{mr.merge_status}"
+puts "detailed=#{mr.detailed_merge_check_status rescue mr.merge_status}"
+puts "head=#{mr.diff_head_sha}"
+service = MergeRequests::MergeService.new(project: project, current_user: user, params: { sha: mr.diff_head_sha, should_remove_source_branch: true })
+result = service.execute(mr)
+puts "result=#{result.inspect}"
+puts "state_after=#{mr.reload.state}"
+puts "merge_error=#{mr.merge_error}"
